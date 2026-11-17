@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Daily Work Journal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
   
   <!-- PINNED CDN DEPENDENCIES -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2156,7 +2157,7 @@
 
     async function fetchProfile() {
       if (!state.user || !supabaseClient) return;
-      const { data, error } = await supabaseClient("profile")
+      const { data, error } = await supabaseClient.from("profile")
         .select("*")
         .eq("user_id", state.user.id)
         .maybeSingle();
@@ -2178,7 +2179,7 @@
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabaseClient("profile")
+      const { error } = await supabaseClient.from("profile")
         .upsert(payload);
 
       if (error) {
@@ -2192,7 +2193,7 @@
 
     async function refreshHolidays() {
       if (!state.user || !supabaseClient) return;
-      const { data, error } = await supabaseClient("holidays")
+      const { data, error } = await supabaseClient.from("holidays")
         .select("holiday_date, name")
         .eq("user_id", state.user.id);
 
@@ -2255,7 +2256,7 @@
       renderJournalTab();
       showToast("success", "Entry saved");
 
-      const { data, error } = await supabaseClient("entries")
+      const { data, error } = await supabaseClient.from("entries")
         .insert([newEntry])
         .select()
         .single();
@@ -2277,7 +2278,7 @@
     async function markEntryDone(entryId) {
       if (!state.user || !supabaseClient) return;
 
-      const { error } = await supabaseClient("entries")
+      const { error } = await supabaseClient.from("entries")
         .update({ status: "Done", updated_at: new Date().toISOString() })
         .eq("id", entryId);
 
@@ -2292,7 +2293,7 @@
     async function updateJournalEntry(id, task, status, toDate, remarks) {
       if (!state.user || !supabaseClient) return;
 
-      const { error } = await supabaseClient("entries")
+      const { error } = await supabaseClient.from("entries")
         .update({
           task,
           status,
@@ -2325,7 +2326,7 @@
       showToast("deleted", "Entry deleted", async () => {
         // Undo Handler: Restore entry
         if (state.lastDeletedEntry) {
-          const { error } = await supabaseClient("entries")
+          const { error } = await supabaseClient.from("entries")
             .insert([state.lastDeletedEntry]);
           if (!error) {
             state.lastDeletedEntry = null;
@@ -2335,7 +2336,7 @@
         }
       });
 
-      const { error } = await supabaseClient("entries")
+      const { error } = await supabaseClient.from("entries")
         .delete()
         .eq("id", id);
 
@@ -2355,7 +2356,7 @@
         name
       };
 
-      const { error } = await supabaseClient("holidays")
+      const { error } = await supabaseClient.from("holidays")
         .upsert(payload);
 
       if (error) {
@@ -2371,7 +2372,7 @@
     async function removeHolidayRecord(dateStr) {
       if (!state.user || !supabaseClient) return;
 
-      const { error } = await supabaseClient("holidays")
+      const { error } = await supabaseClient.from("holidays")
         .delete()
         .eq("user_id", state.user.id)
         .eq("holiday_date", dateStr);
