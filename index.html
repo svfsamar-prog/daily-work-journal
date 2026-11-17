@@ -1,0 +1,3370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Daily Work Journal</title>
+  
+  <!-- PINNED CDN DEPENDENCIES -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    /* =====================================================================
+       CSS VARIABLES & THEME SETUP
+       ===================================================================== */
+    :root {
+      --primary: #1f6b2c;
+      --primary-hover: #175322;
+      --primary-tint: #e8f3e6;
+      --primary-tint-hover: #dcf0d9;
+      --tint: #e8f3e6;
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --surface-subtle: #f8faf8;
+      --text: #191c1a;
+      --text-muted: #64748b;
+      --text-dim: #8c9688;
+      --border: #d9d9d9;
+      --border-light: #e8ede7;
+      --off: #eceeed;
+      --holiday: #d4d7d6;
+      --pending-bg: #fef3c7;
+      --pending-text: #d97706;
+      --followup-bg: #e0f2fe;
+      --followup-text: #0284c7;
+      --done-bg: #e8f3e6;
+      --done-text: #1f6b2c;
+      --error-bg: #fee2e2;
+      --error-text: #ba1a1a;
+      --dark-toast-bg: #222924;
+      --dark-toast-text: #ffffff;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-full: 9999px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 16px -2px rgba(28, 31, 29, 0.08), 0 2px 6px -1px rgba(28, 31, 29, 0.04);
+      --shadow-lg: 0 12px 32px -4px rgba(28, 31, 29, 0.16);
+      --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --primary: #34a853;
+        --primary-hover: #2b8d45;
+        --primary-tint: #1c2b20;
+        --primary-tint-hover: #233729;
+        --tint: #1c2b20;
+        --bg: #121614;
+        --surface: #19201c;
+        --surface-subtle: #141a16;
+        --text: #f1f5f2;
+        --text-muted: #94a3b8;
+        --text-dim: #6e7d73;
+        --border: #2e3b33;
+        --border-light: #25312a;
+        --off: #202722;
+        --holiday: #2b3630;
+        --pending-bg: #33240f;
+        --pending-text: #fbbf24;
+        --followup-bg: #0c2d48;
+        --followup-text: #38bdf8;
+        --done-bg: #15321f;
+        --done-text: #4ade80;
+        --error-bg: #3b1414;
+        --error-text: #f87171;
+        --dark-toast-bg: #2d3831;
+        --dark-toast-text: #ffffff;
+        --shadow-md: 0 4px 16px -2px rgba(0,0,0,0.4);
+      }
+    }
+
+    /* Reset & Base */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font-stack);
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    button, input, select, textarea {
+      font-family: inherit;
+      font-size: 14px;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background-color: var(--surface);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-tint);
+    }
+
+    /* Container constraints */
+    .app-container {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 16px 40px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-container.wide-mode {
+      max-width: 900px;
+    }
+
+    /* App Shell Header */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border-light);
+      padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0;
+    }
+
+    .header-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-today-quick {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      color: var(--primary);
+      background: var(--surface);
+    }
+    .btn-today-quick:hover {
+      background: var(--primary-tint);
+    }
+
+    /* Top Tabs Navigation */
+    .tab-nav {
+      max-width: 720px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--border-light);
+    }
+
+    .tab-btn {
+      padding: 8px 4px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      position: relative;
+    }
+
+    .tab-btn svg {
+      width: 20px;
+      height: 20px;
+      stroke-width: 2;
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .tab-btn.active::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 12%;
+      right: 12%;
+      height: 3px;
+      background-color: var(--primary);
+      border-radius: 3px 3px 0 0;
+    }
+
+    /* Screen Sections */
+    .screen-panel {
+      display: none;
+      padding-top: 16px;
+      animation: fadeIn 0.18s ease forwards;
+    }
+    .screen-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Decorative Top Gradient for Login / Sunday / Profile */
+    .screen-ambient-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 180px;
+      background: radial-gradient(circle at 10% 10%, rgba(31, 107, 44, 0.08) 0%, transparent 60%),
+                  radial-gradient(circle at 90% 10%, rgba(31, 107, 44, 0.06) 0%, transparent 55%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* =====================================================================
+       1. LOGIN SCREEN
+       ===================================================================== */
+    .login-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px;
+      position: relative;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 1;
+    }
+
+    .brand-mark {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      background: var(--primary-tint);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .brand-subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+      text-align: center;
+    }
+
+    .form-group {
+      width: 100%;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .form-group .input-icon-left {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    .form-group .input-with-icon {
+      padding-left: 44px;
+    }
+
+    .form-group .input-icon-right {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 4px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      min-height: 48px;
+      background-color: var(--primary);
+      color: #ffffff;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 15px;
+      gap: 8px;
+      box-shadow: 0 2px 6px rgba(31, 107, 44, 0.25);
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .login-info-box {
+      margin-top: 18px;
+      padding: 12px 14px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 12px;
+      color: var(--text-muted);
+      width: 100%;
+    }
+
+    .auth-error-msg {
+      color: var(--error-text);
+      background-color: var(--error-bg);
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      margin-bottom: 14px;
+      width: 100%;
+      display: none;
+    }
+
+    /* =====================================================================
+       2. JOURNAL SCREEN
+       ===================================================================== */
+    /* Date Bar */
+    .date-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .btn-nav-arrow {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--text);
+    }
+    .btn-nav-arrow:hover {
+      background: var(--surface-subtle);
+    }
+
+    .btn-date-picker-trigger {
+      flex: 1;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      font-weight: 600;
+      font-size: 14px;
+      gap: 8px;
+      color: var(--text);
+      padding: 0 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-date-today {
+      height: 40px;
+      padding: 0 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .btn-date-today:hover {
+      background: var(--primary-tint);
+      color: var(--primary);
+    }
+
+    /* Subtitle Line */
+    .day-subtitle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      padding: 0 4px;
+    }
+
+    .btn-text-action {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .btn-text-action:hover {
+      text-decoration: underline;
+    }
+
+    /* Pending from before card */
+    .pending-card {
+      background: var(--primary-tint);
+      border: 1px solid rgba(31, 107, 44, 0.2);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .pending-header {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .pending-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--primary);
+    }
+
+    .pending-items-list {
+      padding: 0 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pending-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--surface);
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(31, 107, 44, 0.15);
+      font-size: 13px;
+    }
+
+    .pending-item-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+
+    .pending-item-task {
+      font-weight: 500;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .pending-item-date {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .btn-mark-done {
+      padding: 6px 12px;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      background: #ffffff;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-mark-done:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    /* Task Entry Input Card */
+    .entry-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .entry-input-row {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px 6px 14px;
+    }
+
+    .entry-input {
+      border: none;
+      box-shadow: none;
+      padding: 8px 0;
+      font-size: 14px;
+      background: transparent;
+      min-height: 40px;
+    }
+    .entry-input:focus {
+      box-shadow: none;
+    }
+
+    .btn-send-entry {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+    .btn-send-entry:hover {
+      background: var(--primary-tint);
+    }
+
+    .more-toggle-row {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .more-options-drawer {
+      padding: 12px 14px 14px;
+      border-top: 1px solid var(--border-light);
+      display: none;
+      gap: 12px;
+      flex-direction: column;
+      background: var(--surface-subtle);
+    }
+    .more-options-drawer.open {
+      display: flex;
+    }
+
+    .more-row-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (max-width: 480px) {
+      .more-row-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Entries List Section */
+    .entries-section-header {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .entries-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .entry-row-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+    }
+
+    .entry-idx {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-muted);
+      min-width: 18px;
+      padding-top: 2px;
+    }
+
+    .entry-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .entry-task-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .entry-date-range {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .entry-remarks {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    .entry-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* Status Pills */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status-pill.done {
+      background-color: var(--done-bg);
+      color: var(--done-text);
+      border: 1px solid rgba(31, 107, 44, 0.2);
+    }
+
+    .status-pill.pending {
+      background-color: var(--pending-bg);
+      color: var(--pending-text);
+      border: 1px solid rgba(217, 119, 6, 0.25);
+    }
+
+    .status-pill.follow-up {
+      background-color: var(--followup-bg);
+      color: var(--followup-text);
+      border: 1px solid rgba(2, 132, 199, 0.25);
+    }
+
+    .btn-icon-action {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+    }
+    .btn-icon-action:hover {
+      background: var(--surface-subtle);
+      color: var(--text);
+    }
+    .btn-icon-action.delete:hover {
+      color: var(--error-text);
+      background: var(--error-bg);
+    }
+
+    /* Sunday / Holiday View */
+    .holiday-banner-card {
+      background: var(--off);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .holiday-banner-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .holiday-banner-text h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .holiday-banner-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .holiday-empty-state {
+      padding: 36px 16px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .holiday-art-badge {
+      width: 110px;
+      height: 100px;
+      background: #ffffff;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .holiday-art-badge .badge-rings {
+      position: absolute;
+      top: -8px;
+      display: flex;
+      gap: 14px;
+    }
+
+    .holiday-art-badge .badge-ring {
+      width: 8px;
+      height: 14px;
+      background: var(--primary);
+      border-radius: 4px;
+    }
+
+    .holiday-art-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--text);
+      letter-spacing: 0.05em;
+    }
+
+    .holiday-heading {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .holiday-subtext {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .btn-add-worked-entry {
+      min-height: 44px;
+      padding: 0 20px;
+      background: var(--primary);
+      color: #ffffff;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 14px;
+      gap: 6px;
+      box-shadow: 0 2px 6px rgba(31, 107, 44, 0.2);
+    }
+    .btn-add-worked-entry:hover {
+      background: var(--primary-hover);
+    }
+
+    /* =====================================================================
+       3. CALENDAR SCREEN
+       ===================================================================== */
+    .calendar-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+
+    .calendar-month-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .calendar-month-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .calendar-weekday-header {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding-bottom: 6px;
+    }
+
+    .calendar-day-cell {
+      aspect-ratio: 1;
+      border-radius: var(--radius-sm);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      position: relative;
+      border: 1px solid transparent;
+      user-select: none;
+      transition: all 0.1s ease;
+    }
+
+    .calendar-day-cell:hover {
+      background-color: var(--primary-tint);
+    }
+
+    .calendar-day-cell.other-month {
+      color: var(--text-dim);
+      opacity: 0.45;
+    }
+
+    .calendar-day-cell.today {
+      border: 2px solid var(--primary);
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .calendar-day-cell.sunday {
+      background-color: var(--off);
+    }
+
+    .calendar-day-cell.holiday {
+      background-color: var(--holiday);
+    }
+
+    .calendar-day-cell.no-entries-past {
+      border: 1.5px dashed var(--border);
+    }
+
+    .calendar-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background-color: var(--primary);
+      position: absolute;
+      bottom: 4px;
+    }
+
+    .calendar-h-tag {
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--text-muted);
+      position: absolute;
+      bottom: 2px;
+      line-height: 1;
+    }
+
+    .calendar-legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 12px 0 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-light);
+      margin-top: 14px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-box {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: bold;
+    }
+    .legend-box.today { border: 2px solid var(--primary); }
+    .legend-box.dot { background: var(--surface); position: relative; }
+    .legend-box.dot::after {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+    .legend-box.no-entry { border: 1.5px dashed var(--border); }
+    .legend-box.sunday { background: var(--off); }
+    .legend-box.holiday { background: var(--holiday); color: var(--text-muted); }
+
+    /* =====================================================================
+       4. REPORTS SCREEN
+       ===================================================================== */
+    .segmented-control {
+      display: flex;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      margin-bottom: 14px;
+      gap: 4px;
+    }
+
+    .segment-btn {
+      flex: 1;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+    }
+
+    .segment-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .report-anchor-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .report-date-input-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .btn-report-date {
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      font-size: 13px;
+      font-weight: 600;
+      gap: 8px;
+      color: var(--text);
+    }
+
+    .report-summary-card {
+      background: var(--primary-tint);
+      border: 1px solid rgba(31, 107, 44, 0.2);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .report-summary-range {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--primary);
+    }
+
+    .report-summary-stats {
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .report-table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+      min-width: 540px;
+    }
+
+    .report-table th, .report-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .report-table th {
+      background: var(--surface-subtle);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .report-table tr.sunday-row {
+      background-color: var(--off);
+    }
+
+    .report-table tr.holiday-row {
+      background-color: var(--holiday);
+    }
+
+    .report-footer-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 4px;
+    }
+
+    .report-footer-total {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .report-download-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-download-pdf {
+      height: 40px;
+      padding: 0 16px;
+      background: var(--primary);
+      color: #ffffff;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 13px;
+      gap: 6px;
+    }
+    .btn-download-pdf:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-download-excel {
+      height: 40px;
+      padding: 0 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 13px;
+      gap: 6px;
+    }
+    .btn-download-excel:hover {
+      background: var(--surface-subtle);
+    }
+
+    /* =====================================================================
+       5. PROFILE SCREEN
+       ===================================================================== */
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+
+    .profile-header-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .profile-avatar-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--primary-tint);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .profile-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .profile-form-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .profile-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+
+    @media (max-width: 520px) {
+      .profile-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+    }
+
+    .profile-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .profile-last-updated {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      margin-bottom: 20px;
+    }
+
+    .btn-logout {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 14px;
+      background: var(--surface);
+    }
+    .btn-logout:hover {
+      background: var(--error-bg);
+      border-color: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    /* =====================================================================
+       6. MODALS
+       ===================================================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      backdrop-filter: blur(2px);
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 440px;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+
+    .modal-body {
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-field label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .modal-footer {
+      padding: 12px 18px 16px;
+      border-top: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn-modal-cancel {
+      height: 40px;
+      padding: 0 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .btn-modal-action {
+      height: 40px;
+      padding: 0 18px;
+      background: var(--primary);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      color: #ffffff;
+    }
+    .btn-modal-action:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-modal-remove {
+      height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--error-text);
+      color: var(--error-text);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      margin-right: auto;
+      gap: 6px;
+    }
+    .btn-modal-remove:hover {
+      background: var(--error-bg);
+    }
+
+    /* =====================================================================
+       7. TOASTS
+       ===================================================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      width: calc(100% - 32px);
+      max-width: 400px;
+    }
+
+    .toast {
+      pointer-events: auto;
+      padding: 10px 16px;
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: var(--shadow-md);
+      font-size: 13px;
+      font-weight: 500;
+      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes toastIn {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .toast.success {
+      background-color: var(--done-bg);
+      color: var(--done-text);
+      border: 1px solid rgba(31, 107, 44, 0.2);
+    }
+
+    .toast.deleted {
+      background-color: var(--dark-toast-bg);
+      color: var(--dark-toast-text);
+    }
+
+    .toast.error {
+      background-color: var(--error-bg);
+      color: var(--error-text);
+      border: 1px solid rgba(186, 26, 26, 0.2);
+    }
+
+    .toast-undo-btn {
+      color: #38bdf8;
+      font-weight: 700;
+      text-decoration: underline;
+      padding: 2px 4px;
+    }
+
+    .toast-retry-btn {
+      color: var(--error-text);
+      font-weight: 700;
+      text-decoration: underline;
+      padding: 2px 4px;
+    }
+
+    .toast-close-btn {
+      margin-left: auto;
+      color: inherit;
+      opacity: 0.7;
+    }
+    .toast-close-btn:hover {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- =====================================================================
+       1. LOGIN SCREEN CONTAINER
+       ===================================================================== -->
+  <div id="login-screen" class="login-wrapper" style="display: none;">
+    <div class="screen-ambient-bg"></div>
+    <div class="login-card">
+      <div class="brand-mark">
+        <!-- Notebook with pen SVG -->
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1-2.5-2.5z"></path>
+          <path d="M6 6h10"></path>
+          <path d="M6 10h10"></path>
+          <path d="M6 14h6"></path>
+          <path d="m16 19 3-3-3-3"></path>
+        </svg>
+      </div>
+
+      <h1 class="brand-title">Daily Work Journal</h1>
+      <p class="brand-subtitle">Personal Work Tracker</p>
+
+      <div id="login-error" class="auth-error-msg"></div>
+
+      <form id="login-form" style="width: 100%;">
+        <div class="form-group">
+          <div class="input-icon-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          </div>
+          <input type="email" id="login-email" class="input-with-icon" placeholder="Email" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <div class="input-icon-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </div>
+          <input type="password" id="login-password" class="input-with-icon" placeholder="Password" required autocomplete="current-password" style="padding-right: 44px;">
+          <button type="button" id="btn-toggle-pwd" class="input-icon-right" aria-label="Toggle password visibility">
+            <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+
+        <button type="submit" id="btn-sign-in" class="btn-primary" style="margin-top: 8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+          <span>Sign In</span>
+        </button>
+      </form>
+
+      <div class="login-info-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        <span>Use your registered email and password. (No sign-up required)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       2. APP SHELL (LOGGED IN)
+       ===================================================================== -->
+  <div id="app-shell" style="display: none; flex-direction: column; min-height: 100vh;">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-inner">
+        <h1 class="header-title">Daily Work Journal</h1>
+        <button id="btn-header-today" class="btn-today-quick" title="Jump to Today's Journal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        </button>
+      </div>
+
+      <!-- Tab Bar -->
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="journal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span>Journal</span>
+        </button>
+        <button class="tab-btn" data-tab="calendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <span>Calendar</span>
+        </button>
+        <button class="tab-btn" data-tab="reports">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          <span>Reports</span>
+        </button>
+        <button class="tab-btn" data-tab="profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          <span>Profile</span>
+        </button>
+      </nav>
+    </header>
+
+    <main id="main-content" class="app-container">
+      
+      <!-- ===================================================================
+           TAB 1: JOURNAL
+           =================================================================== -->
+      <section id="tab-journal" class="screen-panel active">
+        <!-- Date Bar -->
+        <div class="date-bar">
+          <button id="btn-prev-day" class="btn-nav-arrow" aria-label="Previous day">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          
+          <button id="btn-date-display" class="btn-date-picker-trigger">
+            <span id="journal-date-text">Tue, 17 Nov 2026</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          </button>
+          <!-- Hidden Native Date Picker for trigger -->
+          <input type="date" id="native-journal-date" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+
+          <button id="btn-next-day" class="btn-nav-arrow" aria-label="Next day">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+
+          <button id="btn-goto-today" class="btn-date-today">Today</button>
+        </div>
+
+        <!-- Subtitle Line -->
+        <div class="day-subtitle-row">
+          <span id="day-subtitle-text">Tuesday · Working day</span>
+          <button id="btn-mark-holiday" class="btn-text-action">Mark as holiday</button>
+        </div>
+
+        <!-- Sunday / Holiday Banner (Shown when selected date is Sunday or Holiday) -->
+        <div id="holiday-banner" class="holiday-banner-card" style="display: none;">
+          <div class="holiday-banner-info">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted);"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <div class="holiday-banner-text">
+              <h3 id="holiday-banner-title">Sunday</h3>
+              <p id="holiday-banner-desc">Weekly holiday (no work by default)</p>
+            </div>
+          </div>
+          <button id="btn-edit-holiday" class="btn-icon-action" title="Edit holiday / day settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          </button>
+        </div>
+
+        <!-- Sunday / Holiday Empty Illustration (hidden if entries exist or user clicked add) -->
+        <div id="holiday-illustration-view" class="holiday-empty-state" style="display: none;">
+          <div class="holiday-art-badge">
+            <div class="badge-rings">
+              <div class="badge-ring"></div>
+              <div class="badge-ring"></div>
+            </div>
+            <span id="holiday-badge-text" class="holiday-art-title">SUN</span>
+          </div>
+          <h2 id="holiday-art-heading" class="holiday-heading">It's Sunday</h2>
+          <p id="holiday-art-subtext" class="holiday-subtext">Entry is hidden for weekly holiday.</p>
+          <button id="btn-reveal-entry-box" class="btn-add-worked-entry">
+            <span>+ Add entry (worked today)</span>
+          </button>
+        </div>
+
+        <!-- Main Journal Work Area (Input, Pending, Entries) -->
+        <div id="journal-work-area">
+          <!-- Pending From Before Card -->
+          <div id="pending-card" class="pending-card" style="display: none;">
+            <div id="pending-card-header" class="pending-header">
+              <div class="pending-title-group">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span id="pending-count-text">Pending from before (0)</span>
+              </div>
+              <svg id="pending-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div id="pending-items-list" class="pending-items-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Quick Entry Card -->
+          <div class="entry-card">
+            <div class="entry-input-row">
+              <input type="text" id="quick-task-input" class="entry-input" placeholder="Add a task and press Enter to save..." autocomplete="off">
+              <button id="btn-save-quick-task" class="btn-send-entry" title="Save entry (Enter)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </div>
+
+            <!-- "More" Collapsible Toggle -->
+            <div id="more-toggle-row" class="more-toggle-row">
+              <svg id="more-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              <span>More</span>
+            </div>
+
+            <!-- Expanded More Drawer -->
+            <div id="more-drawer" class="more-options-drawer">
+              <div class="more-row-fields">
+                <div>
+                  <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">STATUS</label>
+                  <select id="more-status-select">
+                    <option value="Done">✔ Done</option>
+                    <option value="Pending">⏳ Pending</option>
+                    <option value="Follow-up">↻ Follow-up</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">TO DATE (OPTIONAL)</label>
+                  <input type="date" id="more-to-date">
+                </div>
+              </div>
+              <div>
+                <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">REMARKS (OPTIONAL)</label>
+                <input type="text" id="more-remarks" placeholder="Optional notes or context...">
+              </div>
+            </div>
+          </div>
+
+          <!-- Entries List Section -->
+          <div class="entries-section-header">
+            <span id="entries-header-title">Entries • 17 Nov 2026 (0)</span>
+          </div>
+
+          <div id="entries-list-container" class="entries-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           TAB 2: CALENDAR
+           =================================================================== -->
+      <section id="tab-calendar" class="screen-panel">
+        <div class="calendar-card">
+          <div class="calendar-month-bar">
+            <button id="btn-cal-prev-month" class="btn-nav-arrow" aria-label="Previous month">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <div class="calendar-month-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              <span id="cal-month-year-label">November 2026</span>
+            </div>
+            <button id="btn-cal-next-month" class="btn-nav-arrow" aria-label="Next month">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+
+          <div class="calendar-grid">
+            <div class="calendar-weekday-header">Mon</div>
+            <div class="calendar-weekday-header">Tue</div>
+            <div class="calendar-weekday-header">Wed</div>
+            <div class="calendar-weekday-header">Thu</div>
+            <div class="calendar-weekday-header">Fri</div>
+            <div class="calendar-weekday-header">Sat</div>
+            <div class="calendar-weekday-header">Sun</div>
+          </div>
+
+          <div id="calendar-days-container" class="calendar-grid" style="margin-top: 4px;">
+            <!-- Day cells generated via JS -->
+          </div>
+
+          <!-- Calendar Legend (Exact match to Mockup 4) -->
+          <div class="calendar-legend">
+            <div class="legend-item">
+              <span class="legend-box today"></span>
+              <span>Today</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-box dot"></span>
+              <span>Has entries</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-box no-entry"></span>
+              <span>No entries (past working day)</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-box sunday"></span>
+              <span>Sunday</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-box holiday">H</span>
+              <span>Holiday</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           TAB 3: REPORTS
+           =================================================================== -->
+      <section id="tab-reports" class="screen-panel">
+        <!-- Segmented range buttons: Day | Week | Month | Custom -->
+        <div class="segmented-control">
+          <button class="segment-btn" data-range="day">Day</button>
+          <button class="segment-btn active" data-range="week">Week</button>
+          <button class="segment-btn" data-range="month">Month</button>
+          <button class="segment-btn" data-range="custom">Custom</button>
+        </div>
+
+        <!-- Anchor Row -->
+        <div class="report-anchor-row">
+          <span id="report-anchor-label">Week of</span>
+          <div class="report-date-input-wrapper" id="single-anchor-wrapper">
+            <button id="btn-report-anchor-date" class="btn-report-date">
+              <span id="report-anchor-date-display">Tue, 17 Nov 2026</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            </button>
+            <input type="date" id="native-report-anchor-date" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+          </div>
+          <!-- Custom Range Pickers (hidden unless custom mode) -->
+          <div id="custom-range-inputs" style="display: none; align-items: center; gap: 8px;">
+            <input type="date" id="report-custom-from" style="min-height: 38px; width: 140px; padding: 6px 10px;">
+            <span>to</span>
+            <input type="date" id="report-custom-to" style="min-height: 38px; width: 140px; padding: 6px 10px;">
+          </div>
+        </div>
+
+        <!-- Summary Card -->
+        <div class="report-summary-card">
+          <div class="report-summary-range">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span id="report-summary-dates">10 Nov 2026 – 15 Nov 2026</span>
+          </div>
+          <div class="report-summary-stats" id="report-summary-stats">
+            Working days: 6 | Total entries: 8
+          </div>
+        </div>
+
+        <!-- Preview Table -->
+        <div class="report-table-card">
+          <table class="report-table" id="report-preview-table">
+            <thead>
+              <tr>
+                <th style="width: 105px;">Date</th>
+                <th style="width: 50px;">Day</th>
+                <th>Work done</th>
+                <th style="width: 120px;">Status</th>
+                <th style="width: 130px;">Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="report-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer Row -->
+        <div class="report-footer-bar">
+          <div class="report-footer-total" id="report-footer-total">
+            Total entries: 0
+          </div>
+          <div class="report-download-group">
+            <button id="btn-download-pdf" class="btn-download-pdf">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+              <span>Download PDF</span>
+            </button>
+            <button id="btn-download-excel" class="btn-download-excel">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+              <span>Download Excel</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           TAB 4: PROFILE
+           =================================================================== -->
+      <section id="tab-profile" class="screen-panel">
+        <div class="profile-card">
+          <div class="profile-header-strip">
+            <div class="profile-avatar-circle">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            </div>
+            <h2 class="profile-title">My Profile</h2>
+          </div>
+
+          <form id="profile-form">
+            <div class="profile-form-grid">
+              <div class="profile-row">
+                <label class="profile-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  <span>Name *</span>
+                </label>
+                <input type="text" id="prof-name" placeholder="Full Name" required>
+              </div>
+
+              <div class="profile-row">
+                <label class="profile-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="8" x2="10" y2="8"></line><line x1="6" y1="12" x2="14" y2="12"></line><line x1="6" y1="16" x2="18" y2="16"></line></svg>
+                  <span>Employee ID</span>
+                </label>
+                <input type="text" id="prof-employee-id" placeholder="e.g. SVF-0172">
+              </div>
+
+              <div class="profile-row">
+                <label class="profile-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                  <span>Designation</span>
+                </label>
+                <input type="text" id="prof-designation" placeholder="e.g. Operations Head">
+              </div>
+
+              <div class="profile-row">
+                <label class="profile-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"></path><path d="M19 21v-4"></path><path d="M19 13V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"></path><path d="M9 7h1"></path><path d="M9 11h1"></path><path d="M9 15h1"></path><path d="M14 7h1"></path><path d="M14 11h1"></path><path d="M14 15h1"></path></svg>
+                  <span>Branch</span>
+                </label>
+                <input type="text" id="prof-branch" placeholder="e.g. Patna">
+              </div>
+            </div>
+
+            <button type="submit" id="btn-save-profile" class="btn-primary" style="margin-top: 10px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              <span>Save Changes</span>
+            </button>
+          </form>
+
+          <p class="profile-last-updated" id="prof-last-updated">Last updated: Never</p>
+
+          <button type="button" id="btn-logout" class="btn-logout">Log out</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 1: EDIT ENTRY (Mockup 7)
+       ===================================================================== -->
+  <div id="modal-edit-entry" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          <span>Edit Entry</span>
+        </h3>
+        <button type="button" class="btn-icon-action modal-close" aria-label="Close modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <form id="edit-entry-form">
+        <div class="modal-body">
+          <input type="hidden" id="edit-entry-id">
+          <div class="modal-field">
+            <label for="edit-task">Task *</label>
+            <textarea id="edit-task" rows="3" required style="resize: vertical;"></textarea>
+          </div>
+
+          <div class="modal-field">
+            <label for="edit-status">Status *</label>
+            <select id="edit-status" required>
+              <option value="Done">✔ Done</option>
+              <option value="Pending">⏳ Pending</option>
+              <option value="Follow-up">↻ Follow-up</option>
+            </select>
+          </div>
+
+          <div class="modal-field">
+            <label for="edit-to-date">To date</label>
+            <input type="date" id="edit-to-date">
+          </div>
+
+          <div class="modal-field">
+            <label for="edit-remarks">Remarks</label>
+            <input type="text" id="edit-remarks" placeholder="Optional remarks">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-modal-cancel modal-close">Cancel</button>
+          <button type="submit" class="btn-modal-action">Update</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 2: HOLIDAY (ADD / EDIT) (Mockup 8)
+       ===================================================================== -->
+  <div id="modal-holiday" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <span>Holiday</span>
+        </h3>
+        <button type="button" class="btn-icon-action modal-close" aria-label="Close modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <form id="holiday-form">
+        <div class="modal-body">
+          <div class="modal-field">
+            <label>Date</label>
+            <input type="text" id="holiday-modal-date-display" readonly style="background: var(--surface-subtle); color: var(--text-muted);">
+            <input type="hidden" id="holiday-modal-date-val">
+          </div>
+
+          <div class="modal-field">
+            <label for="holiday-modal-name">Holiday name *</label>
+            <input type="text" id="holiday-modal-name" placeholder="e.g. Diwali (Bhai Dooj)" required>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btn-remove-holiday" class="btn-modal-remove" style="display: none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>Remove</span>
+          </button>
+          <button type="submit" class="btn-modal-action">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TOAST NOTIFICATIONS (Mockup 9)
+       ===================================================================== -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- =====================================================================
+       JAVASCRIPT APPLICATION LOGIC
+       ===================================================================== -->
+  <script>
+    // ==========================================
+    // 1. CONFIGURATION
+    // ==========================================
+    const SUPABASE_URL = "https://cnkiubxytibtfxjxaaku.supabase.co"; 
+    const SUPABASE_ANON_KEY = "sb_publishable_k4j6J5lfCTSFYpgK02_5Gg_yTXt8dQo"; 
+
+    // Active public key (prefers configured key, fallback to localStorage)
+    const activeAnonKey = (SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== "PASTE_ANON_KEY")
+      ? SUPABASE_ANON_KEY
+      : (localStorage.getItem("dwj_supabase_anon_key") || "");
+
+    let supabase = null;
+    try {
+      if (window.supabase && SUPABASE_URL && activeAnonKey && activeAnonKey !== "PASTE_ANON_KEY") {
+        supabase = window.supabase.createClient(SUPABASE_URL, activeAnonKey);
+      }
+    } catch (e) {
+      console.warn("Supabase initialization error:", e);
+    }
+
+    // ==========================================
+    // 2. STATE STORE & CACHE
+    // ==========================================
+    const state = {
+      user: null,
+      profile: null,
+      activeTab: "journal",
+      currentDate: getTodayStr(), // Plain YYYY-MM-DD
+      calMonth: getTodayStr().slice(0, 7), // YYYY-MM
+      reportRange: "week",
+      reportAnchorDate: getTodayStr(),
+      reportCustomFrom: addDays(getTodayStr(), -6),
+      reportCustomTo: getTodayStr(),
+      
+      // In-memory cache
+      entriesForDate: [],
+      pendingRollovers: [],
+      monthEntries: [],
+      holidaysCache: {}, // { 'YYYY-MM-DD': 'Holiday Name' }
+      
+      // Undo buffer for deleted entries
+      lastDeletedEntry: null,
+      undoTimeoutId: null,
+
+      // UI state
+      forceShowEntryOnHoliday: false,
+      moreDrawerOpen: false,
+      pendingExpanded: true
+    };
+
+    // ==========================================
+    // 3. DATE HELPERS (STRICT LOCAL TIME, NO toISOString())
+    // ==========================================
+    function getTodayStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function parseDateParts(dateStr) {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function addDays(dateStr, n) {
+      const d = parseDateParts(dateStr);
+      d.setDate(d.getDate() + n);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    function formatDateLong(dateStr) {
+      const d = parseDateParts(dateStr);
+      const dayName = DAY_SHORT[d.getDay()];
+      const dayNum = d.getDate();
+      const monthName = MONTH_SHORT[d.getMonth()];
+      const year = d.getFullYear();
+      return `${dayName}, ${dayNum} ${monthName} ${year}`;
+    }
+
+    function formatDateDisplay(dateStr) {
+      const d = parseDateParts(dateStr);
+      return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    function formatDateDDMMYYYY(dateStr) {
+      const [y, m, d] = dateStr.split("-");
+      return `${d}-${m}-${y}`;
+    }
+
+    function getWeekdayIndex(dateStr) {
+      return parseDateParts(dateStr).getDay(); // 0 is Sunday
+    }
+
+    function isSunday(dateStr) {
+      return getWeekdayIndex(dateStr) === 0;
+    }
+
+    function getMondayOfWeek(dateStr) {
+      const d = parseDateParts(dateStr);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diff));
+      const y = monday.getFullYear();
+      const m = String(monday.getMonth() + 1).padStart(2, "0");
+      const dayStr = String(monday.getDate()).padStart(2, "0");
+      return `${y}-${m}-${dayStr}`;
+    }
+
+    function getSundayOfWeek(dateStr) {
+      return addDays(getMondayOfWeek(dateStr), 6);
+    }
+
+    function getMonthStartAndEnd(yearMonthStr) {
+      const [y, m] = yearMonthStr.split("-").map(Number);
+      const start = `${y}-${String(m).padStart(2, "0")}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      return { start, end };
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // ==========================================
+    // 4. DATA LAYER (SUPABASE QUERIES)
+    // ==========================================
+    function checkSupabaseConfig() {
+      if (!supabase) {
+        const userKey = prompt(
+          "Supabase anon public key is required to interact with the database.\n\n" +
+          "Your Supabase Project URL is:\n" + SUPABASE_URL + "\n\n" +
+          "Please paste your Supabase 'anon' public key:"
+        );
+        if (userKey && userKey.trim()) {
+          localStorage.setItem("dwj_supabase_anon_key", userKey.trim());
+          location.reload();
+        } else {
+          showToast("error", "Supabase Anon key missing. Check Project Settings -> API.");
+        }
+        return false;
+      }
+      return true;
+    }
+
+    async function initAuth() {
+      if (!supabase) {
+        showLoginScreen();
+        return;
+      }
+
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session && session.user) {
+        state.user = session.user;
+        showAppShell();
+        await loadInitialData();
+      } else {
+        showLoginScreen();
+      }
+
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session && session.user) {
+          state.user = session.user;
+          showAppShell();
+          await loadInitialData();
+        } else {
+          state.user = null;
+          showLoginScreen();
+        }
+      });
+    }
+
+    async function loadInitialData() {
+      await fetchProfile();
+      await refreshHolidays();
+      await refreshJournalData();
+    }
+
+    async function fetchProfile() {
+      if (!state.user || !supabase) return;
+      const { data, error } = await supabase
+        .from("profile")
+        .select("*")
+        .eq("user_id", state.user.id)
+        .maybeSingle();
+
+      if (data) {
+        state.profile = data;
+        renderProfileTab();
+      }
+    }
+
+    async function saveProfileData(name, employee_id, designation, branch) {
+      if (!state.user || !supabase) return;
+      const payload = {
+        user_id: state.user.id,
+        name,
+        employee_id,
+        designation,
+        branch,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from("profile")
+        .upsert(payload);
+
+      if (error) {
+        showToast("error", "Error saving profile: " + error.message);
+      } else {
+        state.profile = payload;
+        renderProfileTab();
+        showToast("success", "Profile updated successfully");
+      }
+    }
+
+    async function refreshHolidays() {
+      if (!state.user || !supabase) return;
+      const { data, error } = await supabase
+        .from("holidays")
+        .select("holiday_date, name")
+        .eq("user_id", state.user.id);
+
+      if (data) {
+        state.holidaysCache = {};
+        data.forEach(h => {
+          state.holidaysCache[h.holiday_date] = h.name;
+        });
+      }
+    }
+
+    async function refreshJournalData() {
+      if (!state.user || !supabase) return;
+      const dateStr = state.currentDate;
+
+      // 1. Fetch entries for current date
+      const { data: entries, error: err1 } = await supabase
+        .from("entries")
+        .select("*")
+        .eq("user_id", state.user.id)
+        .eq("entry_date", dateStr)
+        .order("created_at", { ascending: true });
+
+      if (entries) {
+        state.entriesForDate = entries;
+      }
+
+      // 2. Fetch pending rollovers: status in ('Pending','Follow-up') and entry_date < currentDate
+      const { data: pending, error: err2 } = await supabase
+        .from("entries")
+        .select("*")
+        .eq("user_id", state.user.id)
+        .in("status", ["Pending", "Follow-up"])
+        .lt("entry_date", dateStr)
+        .order("entry_date", { ascending: true });
+
+      if (pending) {
+        state.pendingRollovers = pending;
+      }
+
+      renderJournalTab();
+    }
+
+    async function addJournalEntry(task, status = "Done", toDate = null, remarks = null) {
+      if (!state.user || !supabase) return;
+
+      const newEntry = {
+        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+        user_id: state.user.id,
+        entry_date: state.currentDate,
+        task,
+        status: status || "Done",
+        to_date: toDate || null,
+        remarks: remarks || null,
+        created_at: new Date().toISOString()
+      };
+
+      // Optimistic UI update
+      state.entriesForDate.push(newEntry);
+      renderJournalTab();
+      showToast("success", "Entry saved");
+
+      const { data, error } = await supabase
+        .from("entries")
+        .insert([newEntry])
+        .select()
+        .single();
+
+      if (error) {
+        // Rollback optimistic addition
+        state.entriesForDate = state.entriesForDate.filter(e => e.id !== newEntry.id);
+        renderJournalTab();
+        showToast("error", "Not saved.", () => {
+          addJournalEntry(task, status, toDate, remarks);
+        });
+      } else {
+        // Replace temp id with server id if needed
+        const idx = state.entriesForDate.findIndex(e => e.id === newEntry.id);
+        if (idx !== -1 && data) state.entriesForDate[idx] = data;
+      }
+    }
+
+    async function markEntryDone(entryId) {
+      if (!state.user || !supabase) return;
+
+      const { error } = await supabase
+        .from("entries")
+        .update({ status: "Done", updated_at: new Date().toISOString() })
+        .eq("id", entryId);
+
+      if (error) {
+        showToast("error", "Failed to update entry: " + error.message);
+      } else {
+        showToast("success", "Marked as Done");
+        await refreshJournalData();
+      }
+    }
+
+    async function updateJournalEntry(id, task, status, toDate, remarks) {
+      if (!state.user || !supabase) return;
+
+      const { error } = await supabase
+        .from("entries")
+        .update({
+          task,
+          status,
+          to_date: toDate || null,
+          remarks: remarks || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+
+      if (error) {
+        showToast("error", "Failed to update entry: " + error.message);
+      } else {
+        showToast("success", "Entry updated");
+        await refreshJournalData();
+      }
+    }
+
+    async function deleteJournalEntry(id) {
+      if (!state.user || !supabase) return;
+
+      // Find entry to back up for Undo
+      const entryToDelete = state.entriesForDate.find(e => e.id === id);
+      if (!entryToDelete) return;
+
+      // Optimistic removal
+      state.entriesForDate = state.entriesForDate.filter(e => e.id !== id);
+      renderJournalTab();
+
+      state.lastDeletedEntry = entryToDelete;
+      showToast("deleted", "Entry deleted", async () => {
+        // Undo Handler: Restore entry
+        if (state.lastDeletedEntry) {
+          const { error } = await supabase
+            .from("entries")
+            .insert([state.lastDeletedEntry]);
+          if (!error) {
+            state.lastDeletedEntry = null;
+            showToast("success", "Entry restored");
+            await refreshJournalData();
+          }
+        }
+      });
+
+      const { error } = await supabase
+        .from("entries")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        // If delete failed on server, restore
+        state.entriesForDate.push(entryToDelete);
+        renderJournalTab();
+        showToast("error", "Could not delete: " + error.message);
+      }
+    }
+
+    async function saveHolidayRecord(dateStr, name) {
+      if (!state.user || !supabase) return;
+      const payload = {
+        user_id: state.user.id,
+        holiday_date: dateStr,
+        name
+      };
+
+      const { error } = await supabase
+        .from("holidays")
+        .upsert(payload);
+
+      if (error) {
+        showToast("error", "Failed to save holiday: " + error.message);
+      } else {
+        state.holidaysCache[dateStr] = name;
+        showToast("success", "Holiday saved");
+        await refreshJournalData();
+        if (state.activeTab === "calendar") renderCalendarTab();
+      }
+    }
+
+    async function removeHolidayRecord(dateStr) {
+      if (!state.user || !supabase) return;
+
+      const { error } = await supabase
+        .from("holidays")
+        .delete()
+        .eq("user_id", state.user.id)
+        .eq("holiday_date", dateStr);
+
+      if (error) {
+        showToast("error", "Failed to remove holiday: " + error.message);
+      } else {
+        delete state.holidaysCache[dateStr];
+        showToast("success", "Holiday removed");
+        await refreshJournalData();
+        if (state.activeTab === "calendar") renderCalendarTab();
+      }
+    }
+
+    // ==========================================
+    // 5. UI RENDERING
+    // ==========================================
+    function showLoginScreen() {
+      document.getElementById("login-screen").style.display = "flex";
+      document.getElementById("app-shell").style.display = "none";
+    }
+
+    function showAppShell() {
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("app-shell").style.display = "flex";
+    }
+
+    function switchTab(tabName) {
+      state.activeTab = tabName;
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === tabName);
+      });
+      document.querySelectorAll(".screen-panel").forEach(panel => {
+        panel.classList.toggle("active", panel.id === `tab-${tabName}`);
+      });
+
+      const container = document.getElementById("main-content");
+      if (tabName === "reports") {
+        container.classList.add("wide-mode");
+        renderReportsTab();
+      } else {
+        container.classList.remove("wide-mode");
+      }
+
+      if (tabName === "journal") renderJournalTab();
+      if (tabName === "calendar") renderCalendarTab();
+      if (tabName === "profile") renderProfileTab();
+    }
+
+    /* ---------------- JOURNAL TAB RENDER ---------------- */
+    function renderJournalTab() {
+      const dateStr = state.currentDate;
+      const dateLong = formatDateLong(dateStr);
+      document.getElementById("journal-date-text").textContent = dateLong;
+      document.getElementById("native-journal-date").value = dateStr;
+
+      const isSun = isSunday(dateStr);
+      const holidayName = state.holidaysCache[dateStr];
+      const isHol = Boolean(holidayName);
+      const isOffDay = isSun || isHol;
+
+      const subtitleEl = document.getElementById("day-subtitle-text");
+      const markHolidayBtn = document.getElementById("btn-mark-holiday");
+      const holidayBanner = document.getElementById("holiday-banner");
+      const holidayBannerTitle = document.getElementById("holiday-banner-title");
+      const holidayBannerDesc = document.getElementById("holiday-banner-desc");
+      const holidayArtView = document.getElementById("holiday-illustration-view");
+      const workArea = document.getElementById("journal-work-area");
+
+      // Subtitle line
+      if (isSun) {
+        subtitleEl.textContent = "Sunday · Weekly holiday";
+        markHolidayBtn.style.display = "none";
+      } else if (isHol) {
+        subtitleEl.textContent = `Holiday · ${holidayName}`;
+        markHolidayBtn.style.display = "none";
+      } else {
+        subtitleEl.textContent = `${DAY_FULL[getWeekdayIndex(dateStr)]} · Working day`;
+        markHolidayBtn.style.display = "inline-block";
+        markHolidayBtn.textContent = "Mark as holiday";
+      }
+
+      // Holiday Banner & Illustration Logic
+      if (isOffDay) {
+        holidayBanner.style.display = "flex";
+        if (isHol) {
+          holidayBannerTitle.textContent = holidayName;
+          holidayBannerDesc.textContent = "Holiday (no work by default)";
+          document.getElementById("holiday-badge-text").textContent = "HOLIDAY";
+          document.getElementById("holiday-art-heading").textContent = `It's ${holidayName}`;
+          document.getElementById("holiday-art-subtext").textContent = "Entry is hidden for holiday.";
+        } else {
+          holidayBannerTitle.textContent = "Sunday";
+          holidayBannerDesc.textContent = "Weekly holiday (no work by default)";
+          document.getElementById("holiday-badge-text").textContent = "SUN";
+          document.getElementById("holiday-art-heading").textContent = "It's Sunday";
+          document.getElementById("holiday-art-subtext").textContent = "Entry is hidden for weekly holiday.";
+        }
+
+        const hasEntries = state.entriesForDate.length > 0;
+        if (!hasEntries && !state.forceShowEntryOnHoliday) {
+          holidayArtView.style.display = "flex";
+          workArea.style.display = "none";
+        } else {
+          holidayArtView.style.display = "none";
+          workArea.style.display = "block";
+        }
+      } else {
+        holidayBanner.style.display = "none";
+        holidayArtView.style.display = "none";
+        workArea.style.display = "block";
+      }
+
+      // Pending from before Card
+      const pendingCard = document.getElementById("pending-card");
+      const pendingList = document.getElementById("pending-items-list");
+      const pendingCount = state.pendingRollovers.length;
+
+      if (pendingCount > 0) {
+        pendingCard.style.display = "block";
+        document.getElementById("pending-count-text").textContent = `Pending from before (${pendingCount})`;
+        pendingList.style.display = state.pendingExpanded ? "flex" : "none";
+        document.getElementById("pending-chevron").style.transform = state.pendingExpanded ? "rotate(180deg)" : "rotate(0deg)";
+
+        pendingList.innerHTML = state.pendingRollovers.map(p => `
+          <div class="pending-item-row">
+            <div class="pending-item-info">
+              <span class="pending-item-task">${escapeHtml(p.task)}</span>
+              <span class="pending-item-date">${formatDateDisplay(p.entry_date)}</span>
+            </div>
+            <button class="btn-mark-done" onclick="markEntryDone('${p.id}')">Mark Done</button>
+          </div>
+        `).join("");
+      } else {
+        pendingCard.style.display = "none";
+      }
+
+      // Entries List
+      const count = state.entriesForDate.length;
+      document.getElementById("entries-header-title").textContent = `Entries • ${formatDateDisplay(dateStr)} (${count})`;
+
+      const listContainer = document.getElementById("entries-list-container");
+      if (count === 0) {
+        listContainer.innerHTML = `<div style="text-align: center; padding: 24px 0; color: var(--text-dim); font-size: 13px;">No entries logged for this day.</div>`;
+      } else {
+        listContainer.innerHTML = state.entriesForDate.map((item, idx) => {
+          let toDateText = "";
+          if (item.to_date) {
+            toDateText = ` <span class="entry-date-range">(${formatDateDisplay(item.entry_date)}–${formatDateDisplay(item.to_date)})</span>`;
+          }
+
+          let remarksText = "";
+          if (item.remarks) {
+            remarksText = `<span class="entry-remarks">${escapeHtml(item.remarks)}</span>`;
+          }
+
+          let statusClass = "done";
+          let statusIcon = "✔";
+          if (item.status === "Pending") {
+            statusClass = "pending";
+            statusIcon = "⏳";
+          } else if (item.status === "Follow-up") {
+            statusClass = "follow-up";
+            statusIcon = "↻";
+          }
+
+          return `
+            <div class="entry-row-card">
+              <span class="entry-idx">${idx + 1}</span>
+              <div class="entry-content">
+                <span class="entry-task-title">${escapeHtml(item.task)}${toDateText}</span>
+                ${remarksText}
+              </div>
+              <div class="entry-actions">
+                <span class="status-pill ${statusClass}">
+                  <span>${statusIcon}</span>
+                  <span>${item.status}</span>
+                </span>
+                <button class="btn-icon-action" onclick="openEditModal('${item.id}')" title="Edit">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                </button>
+                <button class="btn-icon-action delete" onclick="deleteJournalEntry('${item.id}')" title="Delete">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+    }
+
+    /* ---------------- CALENDAR TAB RENDER ---------------- */
+    async function renderCalendarTab() {
+      const ym = state.calMonth; // 'YYYY-MM'
+      const [year, month] = ym.split("-").map(Number);
+      document.getElementById("cal-month-year-label").textContent = `${MONTH_NAMES[month - 1]} ${year}`;
+
+      const { start, end } = getMonthStartAndEnd(ym);
+
+      // Fetch month entries for dot indicators
+      let monthEntriesSet = new Set();
+      if (supabase && state.user) {
+        const { data } = await supabase
+          .from("entries")
+          .select("entry_date")
+          .eq("user_id", state.user.id)
+          .gte("entry_date", start)
+          .lte("entry_date", end);
+
+        if (data) {
+          data.forEach(e => monthEntriesSet.add(e.entry_date));
+        }
+      }
+
+      const container = document.getElementById("calendar-days-container");
+      container.innerHTML = "";
+
+      const todayStr = getTodayStr();
+
+      // First day of month
+      const firstDay = new Date(year, month - 1, 1);
+      let startWeekday = firstDay.getDay(); // 0 is Sun, 1 is Mon
+      // Shift so Mon = 0, Sun = 6
+      let monStart = startWeekday === 0 ? 6 : startWeekday - 1;
+
+      // Days in previous month
+      const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
+      for (let i = monStart - 1; i >= 0; i--) {
+        const dNum = daysInPrevMonth - i;
+        const prevMonth = month === 1 ? 12 : month - 1;
+        const prevYear = month === 1 ? year - 1 : year;
+        const dStr = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+        container.appendChild(createCalendarDayNode(dNum, dStr, true, todayStr, monthEntriesSet));
+      }
+
+      // Days in current month
+      const daysInCurrentMonth = new Date(year, month, 0).getDate();
+      for (let d = 1; d <= daysInCurrentMonth; d++) {
+        const dStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        container.appendChild(createCalendarDayNode(d, dStr, false, todayStr, monthEntriesSet));
+      }
+
+      // Fill remaining cells for standard 7-col grid
+      const totalCells = monStart + daysInCurrentMonth;
+      const remaining = (7 - (totalCells % 7)) % 7;
+      for (let d = 1; d <= remaining; d++) {
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextYear = month === 12 ? year + 1 : year;
+        const dStr = `${nextYear}-${String(nextMonth).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        container.appendChild(createCalendarDayNode(d, dStr, true, todayStr, monthEntriesSet));
+      }
+    }
+
+    function createCalendarDayNode(dNum, dStr, isOtherMonth, todayStr, monthEntriesSet) {
+      const el = document.createElement("div");
+      el.className = "calendar-day-cell";
+      el.textContent = dNum;
+
+      if (isOtherMonth) {
+        el.classList.add("other-month");
+      } else {
+        const isSun = isSunday(dStr);
+        const holName = state.holidaysCache[dStr];
+        const isHol = Boolean(holName);
+        const hasEntries = monthEntriesSet.has(dStr);
+        const isToday = dStr === todayStr;
+        const isPastWorkingDay = !isSun && !isHol && dStr <= todayStr && !hasEntries;
+
+        if (isToday) el.classList.add("today");
+        if (isSun) el.classList.add("sunday");
+        if (isHol) {
+          el.classList.add("holiday");
+          const hTag = document.createElement("span");
+          hTag.className = "calendar-h-tag";
+          hTag.textContent = "H";
+          el.appendChild(hTag);
+          el.title = holName;
+        }
+        if (hasEntries) {
+          const dot = document.createElement("span");
+          dot.className = "calendar-dot";
+          el.appendChild(dot);
+        }
+        if (isPastWorkingDay) {
+          el.classList.add("no-entries-past");
+        }
+      }
+
+      el.addEventListener("click", () => {
+        state.currentDate = dStr;
+        state.forceShowEntryOnHoliday = false;
+        switchTab("journal");
+      });
+
+      return el;
+    }
+
+    /* ---------------- REPORTS TAB RENDER ---------------- */
+    async function renderReportsTab() {
+      // 1. Calculate range [startDate, endDate]
+      let startDate, endDate;
+      const anchor = state.reportAnchorDate;
+
+      if (state.reportRange === "day") {
+        startDate = anchor;
+        endDate = anchor;
+        document.getElementById("report-anchor-label").textContent = "Date";
+        document.getElementById("report-anchor-date-display").textContent = formatDateLong(anchor);
+      } else if (state.reportRange === "week") {
+        startDate = getMondayOfWeek(anchor);
+        endDate = getSundayOfWeek(anchor);
+        document.getElementById("report-anchor-label").textContent = "Week of";
+        document.getElementById("report-anchor-date-display").textContent = formatDateLong(anchor);
+      } else if (state.reportRange === "month") {
+        const ym = anchor.slice(0, 7);
+        const res = getMonthStartAndEnd(ym);
+        startDate = res.start;
+        endDate = res.end;
+        document.getElementById("report-anchor-label").textContent = "Month of";
+        const [y, m] = ym.split("-").map(Number);
+        document.getElementById("report-anchor-date-display").textContent = `${MONTH_NAMES[m - 1]} ${y}`;
+      } else if (state.reportRange === "custom") {
+        startDate = state.reportCustomFrom;
+        endDate = state.reportCustomTo;
+      }
+
+      // Fetch entries in range
+      let entries = [];
+      if (supabase && state.user) {
+        const { data } = await supabase
+          .from("entries")
+          .select("*")
+          .eq("user_id", state.user.id)
+          .gte("entry_date", startDate)
+          .lte("entry_date", endDate)
+          .order("entry_date", { ascending: true })
+          .order("created_at", { ascending: true });
+        if (data) entries = data;
+      }
+
+      // Build daily map
+      const entriesByDate = {};
+      entries.forEach(e => {
+        if (!entriesByDate[e.entry_date]) entriesByDate[e.entry_date] = [];
+        entriesByDate[e.entry_date].push(e);
+      });
+
+      // Calculate working days & entries count
+      let cur = startDate;
+      let workingDays = 0;
+      let totalCalendarDays = 0;
+      let sundaysCount = 0;
+      let holidaysCount = 0;
+      const rowsData = [];
+
+      while (cur <= endDate) {
+        totalCalendarDays++;
+        const isSun = isSunday(cur);
+        const holName = state.holidaysCache[cur];
+        const isHol = Boolean(holName);
+        const dayEntries = entriesByDate[cur] || [];
+
+        if (isSun) {
+          sundaysCount++;
+        } else if (isHol) {
+          holidaysCount++;
+        } else {
+          workingDays++;
+        }
+
+        const dParts = parseDateParts(cur);
+        const dayShort = DAY_SHORT[dParts.getDay()];
+        const dateFormatted = formatDateDDMMYYYY(cur);
+
+        if (dayEntries.length === 0) {
+          let workText = "No entry";
+          let statusText = "-";
+          let remarksText = "-";
+          let rowClass = "";
+
+          if (isSun) {
+            workText = "-";
+            remarksText = "Sunday";
+            rowClass = "sunday-row";
+          } else if (isHol) {
+            workText = "-";
+            remarksText = `Holiday: ${holName}`;
+            rowClass = "holiday-row";
+          }
+
+          rowsData.push({
+            date: dateFormatted,
+            day: dayShort,
+            work: workText,
+            status: statusText,
+            remarks: remarksText,
+            rowClass,
+            isFirstOfDate: true
+          });
+        } else {
+          dayEntries.forEach((entry, idx) => {
+            let workText = dayEntries.length > 1 ? `${idx + 1}. ${entry.task}` : entry.task;
+            if (entry.to_date) {
+              workText += ` (${formatDateDDMMYYYY(entry.entry_date)} to ${formatDateDDMMYYYY(entry.to_date)})`;
+            }
+
+            let remarks = entry.remarks || "-";
+            let rowClass = "";
+            if (isSun) {
+              rowClass = "sunday-row";
+              remarks = (entry.remarks ? entry.remarks + " | " : "") + "Sunday";
+            } else if (isHol) {
+              rowClass = "holiday-row";
+              remarks = (entry.remarks ? entry.remarks + " | " : "") + `Holiday: ${holName}`;
+            }
+
+            rowsData.push({
+              date: idx === 0 ? dateFormatted : "",
+              day: idx === 0 ? dayShort : "",
+              work: workText,
+              status: entry.status,
+              remarks,
+              rowClass,
+              isFirstOfDate: idx === 0
+            });
+          });
+        }
+
+        cur = addDays(cur, 1);
+      }
+
+      // Update Summary Header
+      document.getElementById("report-summary-dates").textContent = `${formatDateDisplay(startDate)} – ${formatDateDisplay(endDate)}`;
+      document.getElementById("report-summary-stats").textContent = `Working days: ${workingDays} | Total entries: ${entries.length}`;
+      document.getElementById("report-footer-total").textContent = `Total entries: ${entries.length}`;
+
+      // Render Preview Table
+      const tbody = document.getElementById("report-table-body");
+      tbody.innerHTML = rowsData.map(r => {
+        let statusBadge = r.status;
+        if (r.status === "Done") {
+          statusBadge = `<span style="color: var(--done-text); font-weight: 600;">✔ Done</span>`;
+        } else if (r.status === "Pending") {
+          statusBadge = `<span style="color: var(--pending-text); font-weight: 600;">⏳ Pending</span>`;
+        } else if (r.status === "Follow-up") {
+          statusBadge = `<span style="color: var(--followup-text); font-weight: 600;">↻ Follow-up</span>`;
+        }
+
+        return `
+          <tr class="${r.rowClass}">
+            <td style="font-weight: 500;">${r.date}</td>
+            <td style="color: var(--text-muted);">${r.day}</td>
+            <td style="word-break: break-word;">${escapeHtml(r.work)}</td>
+            <td>${statusBadge}</td>
+            <td style="color: var(--text-muted);">${escapeHtml(r.remarks)}</td>
+          </tr>
+        `;
+      }).join("");
+
+      // Store in memory for PDF/Excel exports
+      state.reportExportData = {
+        startDate,
+        endDate,
+        workingDays,
+        totalEntries: entries.length,
+        entries,
+        rowsData,
+        summary: {
+          period: `${formatDateDisplay(startDate)} to ${formatDateDisplay(endDate)}`,
+          totalCalendarDays,
+          workingDays,
+          sundaysCount,
+          holidaysCount,
+          totalEntries: entries.length,
+          done: entries.filter(e => e.status === "Done").length,
+          pending: entries.filter(e => e.status === "Pending").length,
+          followup: entries.filter(e => e.status === "Follow-up").length
+        }
+      };
+    }
+
+    /* ---------------- PROFILE TAB RENDER ---------------- */
+    function renderProfileTab() {
+      const p = state.profile || {};
+      document.getElementById("prof-name").value = p.name || "";
+      document.getElementById("prof-employee-id").value = p.employee_id || "";
+      document.getElementById("prof-designation").value = p.designation || "";
+      document.getElementById("prof-branch").value = p.branch || "";
+
+      if (p.updated_at) {
+        const d = new Date(p.updated_at);
+        document.getElementById("prof-last-updated").textContent = `Last updated: ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      } else {
+        document.getElementById("prof-last-updated").textContent = "Last updated: Never";
+      }
+    }
+
+    /* ---------------- MODALS & TOASTS ---------------- */
+    function openEditModal(entryId) {
+      const entry = state.entriesForDate.find(e => e.id === entryId);
+      if (!entry) return;
+
+      document.getElementById("edit-entry-id").value = entry.id;
+      document.getElementById("edit-task").value = entry.task;
+      document.getElementById("edit-status").value = entry.status;
+      document.getElementById("edit-to-date").value = entry.to_date || "";
+      document.getElementById("edit-remarks").value = entry.remarks || "";
+
+      document.getElementById("modal-edit-entry").classList.add("open");
+    }
+
+    function openHolidayModal(dateStr) {
+      document.getElementById("holiday-modal-date-val").value = dateStr;
+      document.getElementById("holiday-modal-date-display").value = formatDateDDMMYYYY(dateStr);
+
+      const existing = state.holidaysCache[dateStr];
+      const nameInput = document.getElementById("holiday-modal-name");
+      const removeBtn = document.getElementById("btn-remove-holiday");
+
+      if (existing) {
+        nameInput.value = existing;
+        removeBtn.style.display = "inline-flex";
+      } else {
+        nameInput.value = "";
+        removeBtn.style.display = "none";
+      }
+
+      document.getElementById("modal-holiday").classList.add("open");
+      nameInput.focus();
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove("open");
+    }
+
+    function showToast(type, message, actionFn = null) {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+
+      let icon = "";
+      if (type === "success") {
+        icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      } else if (type === "deleted") {
+        icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+      } else if (type === "error") {
+        icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+      }
+
+      let actionHtml = "";
+      if (type === "deleted" && actionFn) {
+        actionHtml = `<button class="toast-undo-btn" id="toast-undo">Undo</button>`;
+      } else if (type === "error" && actionFn) {
+        actionHtml = `<button class="toast-retry-btn" id="toast-retry">Retry</button>`;
+      }
+
+      toast.innerHTML = `
+        ${icon}
+        <span>${escapeHtml(message)}</span>
+        ${actionHtml}
+        <button class="toast-close-btn" aria-label="Dismiss">✕</button>
+      `;
+
+      container.appendChild(toast);
+
+      if (actionHtml) {
+        const btn = toast.querySelector("#toast-undo, #toast-retry");
+        if (btn) {
+          btn.addEventListener("click", () => {
+            actionFn();
+            toast.remove();
+          });
+        }
+      }
+
+      toast.querySelector(".toast-close-btn").addEventListener("click", () => toast.remove());
+
+      const duration = type === "deleted" ? 5000 : 3000;
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, duration);
+    }
+
+    // ==========================================
+    // 6. PDF & EXCEL EXPORTS
+    // ==========================================
+    function exportReportPDF() {
+      if (!state.reportExportData) return;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const data = state.reportExportData;
+      const p = state.profile || {};
+
+      // Title & Dark green rule
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(31, 107, 44);
+      doc.text("Daily Work Journal Report", 40, 48);
+
+      doc.setDrawColor(31, 107, 44);
+      doc.setLineWidth(2);
+      doc.line(40, 56, 555, 56);
+
+      // Header Meta details
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(50, 50, 50);
+
+      const col1 = 40;
+      const col2 = 300;
+      let topY = 74;
+
+      doc.text(`Employee Name: ${p.name || "N/A"}`, col1, topY);
+      doc.text(`Period: ${formatDateDisplay(data.startDate)} to ${formatDateDisplay(data.endDate)}`, col2, topY);
+      
+      topY += 15;
+      doc.text(`Employee ID: ${p.employee_id || "N/A"}`, col1, topY);
+      doc.text(`Working Days: ${data.workingDays} | Total Entries: ${data.totalEntries}`, col2, topY);
+
+      topY += 15;
+      doc.text(`Designation: ${p.designation || "N/A"}`, col1, topY);
+      doc.text(`Branch: ${p.branch || "N/A"}`, col2, topY);
+
+      // Table formatting
+      const tableRows = data.rowsData.map(r => [
+        r.date,
+        r.day,
+        r.work,
+        r.status,
+        r.remarks
+      ]);
+
+      doc.autoTable({
+        startY: topY + 18,
+        head: [["Date", "Day", "Work done", "Status", "Remarks"]],
+        body: tableRows,
+        margin: { left: 40, right: 40, bottom: 40 },
+        theme: "plain",
+        styles: {
+          fontSize: 9,
+          cellPadding: 5,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.5,
+          textColor: [25, 28, 26]
+        },
+        headStyles: {
+          fillColor: [240, 243, 240],
+          textColor: [31, 107, 44],
+          fontStyle: "bold"
+        },
+        didParseCell: function(cellData) {
+          const raw = data.rowsData[cellData.row.index];
+          if (raw && raw.rowClass === "sunday-row") {
+            cellData.cell.styles.fillColor = [236, 238, 237];
+          } else if (raw && raw.rowClass === "holiday-row") {
+            cellData.cell.styles.fillColor = [212, 215, 214];
+          }
+        },
+        didDrawPage: function(pageData) {
+          const str = `Page ${doc.internal.getNumberOfPages()}`;
+          doc.setFontSize(8);
+          doc.setTextColor(130, 130, 130);
+          doc.text(str, doc.internal.pageSize.width - 70, doc.internal.pageSize.height - 20);
+        }
+      });
+
+      doc.save(`WorkJournal_${formatDateDDMMYYYY(data.startDate)}_to_${formatDateDDMMYYYY(data.endDate)}.pdf`);
+    }
+
+    function exportReportExcel() {
+      if (!state.reportExportData) return;
+      const data = state.reportExportData;
+      const p = state.profile || {};
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Journal
+      const journalRows = [
+        ["Daily Work Journal Report"],
+        [],
+        ["Employee Name:", p.name || "N/A", "", "Period:", `${formatDateDisplay(data.startDate)} to ${formatDateDisplay(data.endDate)}`],
+        ["Employee ID:", p.employee_id || "N/A", "", "Working Days:", data.workingDays],
+        ["Designation:", p.designation || "N/A", "", "Total Entries:", data.totalEntries],
+        ["Branch:", p.branch || "N/A"],
+        [],
+        ["Date", "Day", "Work done", "Status", "Remarks"]
+      ];
+
+      data.rowsData.forEach(r => {
+        journalRows.push([r.date, r.day, r.work, r.status, r.remarks]);
+      });
+
+      const wsJournal = XLSX.utils.aoa_to_sheet(journalRows);
+      wsJournal["!cols"] = [{ wch: 14 }, { wch: 8 }, { wch: 45 }, { wch: 14 }, { wch: 25 }];
+      XLSX.utils.book_append_sheet(wb, wsJournal, "Journal");
+
+      // Sheet 2: Summary
+      const sum = data.summary;
+      const summaryRows = [
+        ["Report Summary Metrics"],
+        [],
+        ["Period", sum.period],
+        ["Total Calendar Days", sum.totalCalendarDays],
+        ["Working Days", sum.workingDays],
+        ["Sundays", sum.sundaysCount],
+        ["Holidays", sum.holidaysCount],
+        ["Total Entries", sum.totalEntries],
+        ["Done Entries", sum.done],
+        ["Pending Entries", sum.pending],
+        ["Follow-up Entries", sum.followup]
+      ];
+
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+      wsSummary["!cols"] = [{ wch: 22 }, { wch: 28 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+      XLSX.writeFile(wb, `WorkJournal_${formatDateDDMMYYYY(data.startDate)}_to_${formatDateDDMMYYYY(data.endDate)}.xlsx`);
+    }
+
+    // ==========================================
+    // 7. EVENT LISTENERS SETUP
+    // ==========================================
+    document.addEventListener("DOMContentLoaded", () => {
+      initAuth();
+
+      // Login form handler
+      document.getElementById("login-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("login-error");
+        errEl.style.display = "none";
+
+        if (!checkSupabaseConfig()) return;
+
+        const email = document.getElementById("login-email").value.trim();
+        const password = document.getElementById("login-password").value;
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          errEl.textContent = error.message;
+          errEl.style.display = "block";
+        }
+      });
+
+      // Toggle password visibility
+      document.getElementById("btn-toggle-pwd").addEventListener("click", () => {
+        const input = document.getElementById("login-password");
+        const eyeIcon = document.getElementById("eye-icon");
+        if (input.type === "password") {
+          input.type = "text";
+          eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+        } else {
+          input.type = "password";
+          eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+        }
+      });
+
+      // Tab bar navigation
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+
+      // Header button jump to today
+      const gotoTodayHandler = () => {
+        state.currentDate = getTodayStr();
+        state.forceShowEntryOnHoliday = false;
+        switchTab("journal");
+      };
+      document.getElementById("btn-header-today").addEventListener("click", gotoTodayHandler);
+      document.getElementById("btn-goto-today").addEventListener("click", gotoTodayHandler);
+
+      // Date navigation arrows
+      document.getElementById("btn-prev-day").addEventListener("click", () => {
+        state.currentDate = addDays(state.currentDate, -1);
+        state.forceShowEntryOnHoliday = false;
+        refreshJournalData();
+      });
+
+      document.getElementById("btn-next-day").addEventListener("click", () => {
+        state.currentDate = addDays(state.currentDate, 1);
+        state.forceShowEntryOnHoliday = false;
+        refreshJournalData();
+      });
+
+      // Journal Date Picker Trigger
+      const dateDisplayBtn = document.getElementById("btn-date-display");
+      const hiddenDateInput = document.getElementById("native-journal-date");
+      dateDisplayBtn.addEventListener("click", () => {
+        if (typeof hiddenDateInput.showPicker === "function") {
+          hiddenDateInput.showPicker();
+        } else {
+          hiddenDateInput.focus();
+        }
+      });
+      hiddenDateInput.addEventListener("change", (e) => {
+        if (e.target.value) {
+          state.currentDate = e.target.value;
+          state.forceShowEntryOnHoliday = false;
+          refreshJournalData();
+        }
+      });
+
+      // Pending card collapsible toggle
+      document.getElementById("pending-card-header").addEventListener("click", () => {
+        state.pendingExpanded = !state.pendingExpanded;
+        const list = document.getElementById("pending-items-list");
+        list.style.display = state.pendingExpanded ? "flex" : "none";
+        document.getElementById("pending-chevron").style.transform = state.pendingExpanded ? "rotate(180deg)" : "rotate(0deg)";
+      });
+
+      // More collapsible toggle
+      const moreToggle = document.getElementById("more-toggle-row");
+      const moreDrawer = document.getElementById("more-drawer");
+      moreToggle.addEventListener("click", () => {
+        state.moreDrawerOpen = !state.moreDrawerOpen;
+        moreDrawer.classList.toggle("open", state.moreDrawerOpen);
+        document.getElementById("more-chevron").style.transform = state.moreDrawerOpen ? "rotate(180deg)" : "rotate(0deg)";
+      });
+
+      // Quick task save handler
+      const submitTask = () => {
+        const input = document.getElementById("quick-task-input");
+        const val = input.value.trim();
+        if (!val) return;
+
+        const status = document.getElementById("more-status-select").value;
+        const toDate = document.getElementById("more-to-date").value;
+        const remarks = document.getElementById("more-remarks").value.trim();
+
+        addJournalEntry(val, status, toDate, remarks);
+
+        // Reset inputs
+        input.value = "";
+        document.getElementById("more-status-select").value = "Done";
+        document.getElementById("more-to-date").value = "";
+        document.getElementById("more-remarks").value = "";
+
+        if (state.moreDrawerOpen) {
+          state.moreDrawerOpen = false;
+          moreDrawer.classList.remove("open");
+          document.getElementById("more-chevron").style.transform = "rotate(0deg)";
+        }
+
+        input.focus();
+      };
+
+      document.getElementById("quick-task-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submitTask();
+        }
+      });
+      document.getElementById("btn-save-quick-task").addEventListener("click", submitTask);
+
+      // Holiday modal triggers
+      document.getElementById("btn-mark-holiday").addEventListener("click", () => {
+        openHolidayModal(state.currentDate);
+      });
+      document.getElementById("btn-edit-holiday").addEventListener("click", () => {
+        openHolidayModal(state.currentDate);
+      });
+
+      // Reveal entry on holiday / Sunday
+      document.getElementById("btn-reveal-entry-box").addEventListener("click", () => {
+        state.forceShowEntryOnHoliday = true;
+        renderJournalTab();
+        document.getElementById("quick-task-input").focus();
+      });
+
+      // Edit entry modal submit
+      document.getElementById("edit-entry-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const id = document.getElementById("edit-entry-id").value;
+        const task = document.getElementById("edit-task").value.trim();
+        const status = document.getElementById("edit-status").value;
+        const toDate = document.getElementById("edit-to-date").value;
+        const remarks = document.getElementById("edit-remarks").value.trim();
+
+        if (!task) return;
+        await updateJournalEntry(id, task, status, toDate, remarks);
+        closeModal("modal-edit-entry");
+      });
+
+      // Holiday modal submit
+      document.getElementById("holiday-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const dStr = document.getElementById("holiday-modal-date-val").value;
+        const name = document.getElementById("holiday-modal-name").value.trim();
+        if (!name) return;
+
+        await saveHolidayRecord(dStr, name);
+        closeModal("modal-holiday");
+      });
+
+      // Remove holiday button
+      document.getElementById("btn-remove-holiday").addEventListener("click", async () => {
+        const dStr = document.getElementById("holiday-modal-date-val").value;
+        await removeHolidayRecord(dStr);
+        closeModal("modal-holiday");
+      });
+
+      // Modal close handlers (backdrop & close button & ESC)
+      document.querySelectorAll(".modal-close").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const overlay = e.target.closest(".modal-overlay");
+          if (overlay) overlay.classList.remove("open");
+        });
+      });
+
+      document.querySelectorAll(".modal-overlay").forEach(overlay => {
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) overlay.classList.remove("open");
+        });
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          document.querySelectorAll(".modal-overlay.open").forEach(o => o.classList.remove("open"));
+        }
+      });
+
+      // Calendar month buttons
+      document.getElementById("btn-cal-prev-month").addEventListener("click", () => {
+        const [y, m] = state.calMonth.split("-").map(Number);
+        const prevM = m === 1 ? 12 : m - 1;
+        const prevY = m === 1 ? y - 1 : y;
+        state.calMonth = `${prevY}-${String(prevM).padStart(2, "0")}`;
+        renderCalendarTab();
+      });
+
+      document.getElementById("btn-cal-next-month").addEventListener("click", () => {
+        const [y, m] = state.calMonth.split("-").map(Number);
+        const nextM = m === 12 ? 1 : m + 1;
+        const nextY = m === 12 ? y + 1 : y;
+        state.calMonth = `${nextY}-${String(nextM).padStart(2, "0")}`;
+        renderCalendarTab();
+      });
+
+      // Reports Segmented Control
+      document.querySelectorAll(".segment-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".segment-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          state.reportRange = btn.dataset.range;
+
+          const isCustom = state.reportRange === "custom";
+          document.getElementById("single-anchor-wrapper").style.display = isCustom ? "none" : "inline-flex";
+          document.getElementById("custom-range-inputs").style.display = isCustom ? "inline-flex" : "none";
+
+          renderReportsTab();
+        });
+      });
+
+      // Report Anchor Date Trigger
+      const reportDateBtn = document.getElementById("btn-report-anchor-date");
+      const hiddenReportInput = document.getElementById("native-report-anchor-date");
+      reportDateBtn.addEventListener("click", () => {
+        if (typeof hiddenReportInput.showPicker === "function") {
+          hiddenReportInput.showPicker();
+        } else {
+          hiddenReportInput.focus();
+        }
+      });
+      hiddenReportInput.addEventListener("change", (e) => {
+        if (e.target.value) {
+          state.reportAnchorDate = e.target.value;
+          renderReportsTab();
+        }
+      });
+
+      document.getElementById("report-custom-from").value = state.reportCustomFrom;
+      document.getElementById("report-custom-to").value = state.reportCustomTo;
+
+      document.getElementById("report-custom-from").addEventListener("change", (e) => {
+        state.reportCustomFrom = e.target.value;
+        renderReportsTab();
+      });
+      document.getElementById("report-custom-to").addEventListener("change", (e) => {
+        state.reportCustomTo = e.target.value;
+        renderReportsTab();
+      });
+
+      // Report Exports
+      document.getElementById("btn-download-pdf").addEventListener("click", exportReportPDF);
+      document.getElementById("btn-download-excel").addEventListener("click", exportReportExcel);
+
+      // Profile form submit
+      document.getElementById("profile-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = document.getElementById("prof-name").value.trim();
+        const empId = document.getElementById("prof-employee-id").value.trim();
+        const desig = document.getElementById("prof-designation").value.trim();
+        const branch = document.getElementById("prof-branch").value.trim();
+        await saveProfileData(name, empId, desig, branch);
+      });
+
+      // Logout handler
+      document.getElementById("btn-logout").addEventListener("click", async () => {
+        if (supabase) {
+          await supabase.auth.signOut();
+          state.user = null;
+          showLoginScreen();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
